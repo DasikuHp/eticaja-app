@@ -18,6 +18,10 @@
 
 La hice para dejar de pagar un programa de etiquetas. El programa de gestión exporta los productos a un CSV; Eticaja lo lee, enseña qué filas tienen un código de barras correcto, deja elegir cuáles imprimir y genera un PDF con una etiqueta por página, listo para una impresora de etiquetas de 62 x 50 mm. El CSV no sale del navegador: no hay servidor.
 
+https://github.com/user-attachments/assets/ba5c6917-5a78-4110-8a8a-8d6695934f44
+
+<sub>Cargar el CSV de ejemplo, revisar los EAN (el café trae uno estropeado por Excel), ajustar la selección, ver la vista previa y descargar el PDF.</sub>
+
 <div align="center">
   <img src="docs/media/etiqueta.png" alt="Etiqueta generada" width="320">
   <p><sub>Una etiqueta del PDF, generada con el CSV de ejemplo (productos ficticios).</sub></p>
