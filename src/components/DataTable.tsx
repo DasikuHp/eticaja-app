@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table'
-import { CheckCircle2, ArrowUpDown } from 'lucide-react'
 import type { ProductRow } from '../lib/csv-utils'
-import { fixEAN13 } from '../lib/csv-utils'
+import { fixEAN13, isValidEAN13 } from '../lib/csv-utils'
 
 type DataTableProps = {
   rows: ProductRow[]
@@ -28,6 +27,9 @@ export function DataTable({
   const [pageIndex, setPageIndex] = useState(0)
   const pageSize = 10
 
+  // Al cargar otro CSV se vuelve a la primera página.
+  useEffect(() => setPageIndex(0), [rows])
+
   const data = useMemo(
     () => rows.map((row, index) => ({ ...row, __index: index })),
     [rows],
@@ -40,7 +42,7 @@ export function DataTable({
   )
 
   const validEanCount = useMemo(
-    () => rows.filter((row) => fixEAN13(row.EAN13_PRODUCTO).length === 13).length,
+    () => rows.filter((row) => isValidEAN13(fixEAN13(row.EAN13_PRODUCTO))).length,
     [rows],
   )
 
@@ -85,22 +87,21 @@ export function DataTable({
         ),
       }),
       columnHelper.accessor('EAN13_PRODUCTO', {
-        header: () => (
-          <div className="flex items-center gap-2">
-            <span>EAN</span>
-            <ArrowUpDown className="h-4 w-4 text-slate-400" />
-          </div>
-        ),
+        header: () => <span>EAN-13</span>,
         cell: (info) => {
           const raw = info.getValue()
           const fixed = fixEAN13(raw)
-          const valid = fixed.length === 13
+          const valid = isValidEAN13(fixed)
           return (
             <div className="flex flex-col gap-1">
-              <span>{fixed}</span>
+              <span className="font-mono">{fixed || '(vacío)'}</span>
+              {fixed !== raw && raw ? <span className="text-[11px] text-slate-400">en el CSV: {raw}</span> : null}
               {!valid ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-1 text-[11px] font-semibold text-rose-700">
-                  ⚠ EAN inválido
+                <span
+                  className="inline-flex w-fit items-center gap-1 rounded-full bg-rose-100 px-2 py-1 text-[11px] font-semibold text-rose-700"
+                  title="Debe tener 13 dígitos y el último tiene que ser el dígito de control correcto"
+                >
+                  EAN no válido
                 </span>
               ) : null}
             </div>
@@ -131,7 +132,7 @@ export function DataTable({
           </button>
         </div>
         <div className="text-sm text-slate-500">
-          Mostrando {pageIndex * pageSize + 1}-{Math.min((pageIndex + 1) * pageSize, rows.length)} de {rows.length} productos
+          {rows.length ? `Mostrando ${pageIndex * pageSize + 1}-${Math.min((pageIndex + 1) * pageSize, rows.length)} de ${rows.length} productos` : 'Sin productos'}
         </div>
       </div>
 

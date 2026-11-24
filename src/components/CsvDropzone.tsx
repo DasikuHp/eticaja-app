@@ -75,8 +75,8 @@ export function CsvDropzone({ onFileLoaded, isLoading }: CsvDropzoneProps) {
       </div>
 
       <div className="mt-6 space-y-3">
-        <p className="text-lg font-semibold text-slate-900">Arrastra tu ETICAJA.csv aquí</p>
-        <p className="text-sm text-slate-500">o haz click para seleccionar</p>
+        <p className="text-lg font-semibold text-slate-900">Arrastra aquí el archivo .csv</p>
+        <p className="text-sm text-slate-500">o pulsa el botón para elegirlo</p>
       </div>
 
       <button
@@ -99,7 +99,10 @@ export function CsvDropzone({ onFileLoaded, isLoading }: CsvDropzoneProps) {
             {fileName} · {rowCount ?? 0} filas leídas
           </div>
         ) : (
-          <span>Soporta archivos .csv con encabezados ETICAJA.</span>
+          <span>
+            Columnas necesarias: DESC_CORTA_PRODUCTO, EAN13_PRODUCTO, CANTIDAD_C, UME_CONTENIDO y CODIGO_PRODUCTO.
+            Separador coma o punto y coma; UTF-8 o Windows-1252.
+          </span>
         )}
       </div>
 
