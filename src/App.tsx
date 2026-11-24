@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, ArrowRight, FileText, ShieldCheck, Sparkles } from 'lucide-react'
+import { ArrowLeft, ArrowRight, FileText } from 'lucide-react'
 import { CsvDropzone } from './components/CsvDropzone'
 import { DataTable } from './components/DataTable'
 import { PdfGenerator } from './components/PdfGenerator'
+import { LabelPreview } from './components/LabelPreview'
 import type { ProductRow } from './lib/csv-utils'
-import { fixEAN13 } from './lib/csv-utils'
+import { hasValidEAN, parseCSV } from './lib/csv-utils'
 
 type Step = 'upload' | 'review' | 'generate'
 
@@ -17,23 +18,19 @@ function App() {
   const [currentStep, setCurrentStep] = useState<Step>('upload')
   const [toast, setToast] = useState<Toast | null>(null)
 
-  const visibleSelectedCount = selectedRows.size === 0 ? rows.length : selectedRows.size
+  const visibleSelectedCount = selectedRows.size
 
-  const validCount = useMemo(
-    () => rows.filter((row) => fixEAN13(row.EAN13_PRODUCTO).length === 13).length,
-    [rows],
-  )
-
+  // Índices de las filas cuyo EAN-13 es válido (13 dígitos y dígito de control correcto).
   const selectedValidRows = useMemo(
-    () => new Set(rows.map((row, index) => (fixEAN13(row.EAN13_PRODUCTO).length === 13 ? index : -1)).filter((index) => index >= 0)),
+    () => new Set(rows.flatMap((row, index) => (hasValidEAN(row) ? [index] : []))),
     [rows],
   )
+  const validCount = selectedValidRows.size
 
+  // La vista previa muestra la primera fila seleccionada.
   const previewRow = useMemo(() => {
-    if (!rows.length) return null
-    if (selectedRows.size === 0) return rows[0]
     const firstIndex = rows.findIndex((_, index) => selectedRows.has(index))
-    return firstIndex >= 0 ? rows[firstIndex] : rows[0]
+    return firstIndex >= 0 ? rows[firstIndex] : null
   }, [rows, selectedRows])
 
   useEffect(() => {
@@ -45,8 +42,19 @@ function App() {
   const handleFileLoaded = (file: File, rows: ProductRow[]) => {
     setRows(rows)
     setFileName(file.name.replace(/\.csv$/i, ''))
-    setSelectedRows(new Set(rows.map((_, index) => index)))
+    // Por defecto solo se marcan las filas que se pueden imprimir.
+    setSelectedRows(new Set(rows.flatMap((row, index) => (hasValidEAN(row) ? [index] : []))))
     setCurrentStep('review')
+  }
+
+  const loadExample = async () => {
+    try {
+      const res = await fetch(`${import.meta.env.BASE_URL}ejemplo.csv`)
+      const file = new File([await res.blob()], 'ejemplo.csv', { type: 'text/csv' })
+      handleFileLoaded(file, await parseCSV(file))
+    } catch (err) {
+      setToast({ type: 'error', message: err instanceof Error ? err.message : 'No se pudo cargar el ejemplo' })
+    }
   }
 
   const handleToggleRow = (index: number) => {
@@ -74,8 +82,11 @@ function App() {
     setSelectedRows(new Set())
   }
 
-  const handlePdfComplete = (count: number) => {
-    setToast({ type: 'success', message: `✅ PDF generado correctamente — ${count} etiquetas` })
+  const handlePdfComplete = (count: number, skipped: number) => {
+    setToast({
+      type: 'success',
+      message: `PDF descargado con ${count} etiquetas${skipped ? ` (${skipped} omitidas por EAN no válido)` : ''}`,
+    })
   }
 
   const handlePdfError = (message: string) => {
@@ -87,16 +98,10 @@ function App() {
       <div className="mx-auto max-w-[1100px] px-4 py-8 sm:px-6 lg:px-8">
         <header className="mb-8 rounded-[32px] bg-slate-900 px-6 py-6 shadow-xl ring-1 ring-slate-800/50 sm:flex sm:items-center sm:justify-between sm:px-8">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-300">ETICAJA Web App</p>
-            <h1 className="mt-3 text-3xl font-bold text-white sm:text-4xl">🏷️ ETICAJA</h1>
+            <h1 className="text-3xl font-bold text-white sm:text-4xl">Eticaja</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-300 sm:text-base">
-              Generador de Etiquetas desde CSV con PDF local usando pdfme v6.
+              Etiquetas de 62 x 50 mm con código de barras EAN-13 a partir del CSV de tu programa de gestión.
             </p>
-          </div>
-          <div className="mt-4 flex items-center gap-3 sm:mt-0">
-            <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-900">
-              v2.0 • pdfme
-            </span>
           </div>
         </header>
 
@@ -133,12 +138,18 @@ function App() {
             <div className="space-y-4 rounded-[32px] bg-white p-6 shadow-sm ring-1 ring-slate-200">
               <div>
                 <p className="text-sm uppercase tracking-[0.24em] text-indigo-500">Paso 1</p>
-                <h2 className="mt-2 text-2xl font-bold text-slate-900">Carga tu CSV ETICAJA</h2>
+                <h2 className="mt-2 text-2xl font-bold text-slate-900">Carga el CSV de productos</h2>
                 <p className="mt-2 text-sm text-slate-600">
-                  Arrastra el archivo o seleccionalo para revisar los productos antes de generar las etiquetas.
+                  Arrastra el archivo o selecciónalo para revisar los productos antes de generar las etiquetas.
                 </p>
               </div>
               <CsvDropzone onFileLoaded={handleFileLoaded} isLoading={false} />
+              <p className="text-center text-sm text-slate-500">
+                ¿No tienes uno a mano?{' '}
+                <button type="button" onClick={loadExample} className="font-semibold text-indigo-600 underline">
+                  Probar con un CSV de ejemplo
+                </button>
+              </p>
             </div>
           </section>
 
@@ -147,14 +158,13 @@ function App() {
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm uppercase tracking-[0.24em] text-indigo-500">Paso 2</p>
-                  <h2 className="mt-2 text-2xl font-bold text-slate-900">📋 Datos del CSV: {fileName || 'Sin nombre'}</h2>
+                  <h2 className="mt-2 text-2xl font-bold text-slate-900">Datos del CSV: {fileName || 'Sin nombre'}</h2>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-4">
+                <div className="grid gap-3 sm:grid-cols-3">
                   {[
-                    { label: 'Total productos', value: rows.length },
+                    { label: 'Productos', value: rows.length },
                     { label: 'Con EAN válido', value: validCount },
                     { label: 'Seleccionados', value: visibleSelectedCount },
-                    { label: 'Páginas PDF estimadas', value: rows.length ? Math.max(1, Math.ceil(visibleSelectedCount / 8)) : 0 },
                   ].map((metric) => (
                     <div key={metric.label} className="rounded-3xl border border-slate-200 bg-slate-50 p-4 text-center">
                       <p className="text-2xl font-bold text-slate-900">{metric.value}</p>
@@ -227,34 +237,13 @@ function App() {
                       <FileText className="h-5 w-5" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold">Preview de etiqueta</p>
-                      <p className="text-sm text-slate-500">Así se verá en el PDF</p>
+                      <p className="text-sm font-semibold">Vista previa</p>
+                      <p className="text-sm text-slate-500">Primera etiqueta seleccionada, tal cual sale en el PDF</p>
                     </div>
                   </div>
 
-                  <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="mb-4 rounded-3xl border border-slate-200 bg-slate-50 p-4 text-center text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                      Etiqueta 62 x 50 mm
-                    </div>
-                    {previewRow ? (
-                      <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-950 p-4 text-white">
-                        <div className="rounded-2xl bg-slate-900 p-3 text-left text-xs leading-5 text-slate-300">
-                          <p className="font-bold text-sm text-white truncate">{previewRow.DESC_CORTA_PRODUCTO}</p>
-                          <p className="mt-2 text-[11px] text-slate-400">Ref.: {previewRow.CODIGO_PRODUCTO}</p>
-                        </div>
-                        <div className="rounded-3xl bg-slate-800 py-6 text-center text-lg font-bold text-white">
-                          {previewRow.CANTIDAD_C} {previewRow.UME_CONTENIDO}
-                        </div>
-                        <div className="rounded-3xl border border-slate-700 bg-slate-900 p-4 text-center text-[11px] text-slate-400">
-                          <div className="mb-3 h-10 rounded-lg bg-slate-800"></div>
-                          <p>{fixEAN13(previewRow.EAN13_PRODUCTO)}</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
-                        Elige o selecciona una fila para ver la vista previa.
-                      </div>
-                    )}
+                  <div className="rounded-[24px] border border-slate-200 bg-white p-3 shadow-sm">
+                    <LabelPreview row={previewRow} />
                   </div>
                 </div>
               </div>
@@ -266,7 +255,7 @@ function App() {
                   className="inline-flex w-full items-center justify-center rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition duration-200 hover:scale-[1.02] hover:bg-slate-100 sm:w-auto"
                 >
                   <ArrowLeft className="mr-2 h-4 w-4" />
-                  ← Volver a revisar
+                  Volver a revisar
                 </button>
               </div>
             </div>
@@ -274,7 +263,7 @@ function App() {
         </main>
 
         <footer className="mt-10 rounded-[32px] border border-slate-200 bg-white p-5 text-center text-sm text-slate-500 shadow-sm">
-          ETICAJA • Generado con pdfme v6 • 100% local, tus datos nunca salen de tu navegador
+          El CSV se procesa en tu navegador: no se sube a ningún servidor.
         </footer>
       </div>
 

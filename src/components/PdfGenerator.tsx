@@ -1,68 +1,44 @@
 import { useState } from 'react'
 import { AlertCircle, Loader2, Printer } from 'lucide-react'
 import type { ProductRow } from '../lib/csv-utils'
-import { rowToInput } from '../lib/csv-utils'
+import { hasValidEAN, rowToInput } from '../lib/csv-utils'
+import { generateLabelsPdf } from '../lib/label-template'
 
 type PdfGeneratorProps = {
   rows: ProductRow[]
   selectedRows: Set<number>
   fileName: string
-  onComplete?: (count: number) => void
+  onComplete?: (count: number, skipped: number) => void
   onError?: (message: string) => void
 }
 
 export function PdfGenerator({ rows, selectedRows, fileName, onComplete, onError }: PdfGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false)
-  const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
-  const selectedRowsCount = selectedRows.size === 0 ? rows.length : selectedRows.size
-  const activeRows = selectedRows.size === 0 ? rows : rows.filter((_, index) => selectedRows.has(index))
+  const selected = rows.filter((_, index) => selectedRows.has(index))
+  const printable = selected.filter(hasValidEAN)
+  const skipped = selected.length - printable.length
 
   const generatePDF = async () => {
-    if (!rows.length) return
+    if (!printable.length) return
     setIsGenerating(true)
     setError(null)
-    setProgress(0)
-
-    const interval = window.setInterval(() => {
-      setProgress((current) => Math.min(90, current + Math.floor(Math.random() * 8) + 4))
-    }, 100)
-
     try {
-      const inputs = activeRows.map(rowToInput)
-      if (!inputs.length) {
-        throw new Error('No hay etiquetas seleccionadas para generar.')
-      }
-
-      const { generate } = await import('@pdfme/generator')
-      const { labelTemplate, getPlugins } = await import('../lib/label-template')
-      const plugins = await getPlugins()
-      
-      const pdfBytes = await generate({ template: labelTemplate, inputs, plugins })
-      setProgress(100)
-
-      const blob = new Blob([pdfBytes as Uint8Array], { type: 'application/pdf' })
-      const url = URL.createObjectURL(blob)
+      const pdfBytes = await generateLabelsPdf(printable.map(rowToInput))
+      const url = URL.createObjectURL(new Blob([pdfBytes.slice()], { type: 'application/pdf' }))
       const anchor = document.createElement('a')
       anchor.href = url
       anchor.download = `${fileName}_etiquetas.pdf`
-      document.body.appendChild(anchor)
       anchor.click()
-      anchor.remove()
-      URL.revokeObjectURL(url)
-
-      onComplete?.(inputs.length)
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      onComplete?.(printable.length, skipped)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error creando PDF.'
+      const message = err instanceof Error ? err.message : 'No se pudo crear el PDF.'
       setError(message)
       onError?.(message)
     } finally {
-      window.clearInterval(interval)
-      setTimeout(() => {
-        setIsGenerating(false)
-        setProgress(0)
-      }, 300)
+      setIsGenerating(false)
     }
   }
 
@@ -74,32 +50,26 @@ export function PdfGenerator({ rows, selectedRows, fileName, onComplete, onError
         </div>
         <div>
           <p className="text-sm font-semibold text-slate-500">Generador de etiquetas</p>
-          <p className="text-lg font-bold text-slate-900">{selectedRowsCount === rows.length ? `Todas (${rows.length})` : `${selectedRowsCount} etiquetas seleccionadas`}</p>
+          <p className="text-lg font-bold text-slate-900">{printable.length} etiquetas para imprimir</p>
         </div>
       </div>
 
-      <div className="space-y-3 rounded-3xl bg-slate-50 p-4">
-        <div className="flex items-center justify-between text-sm text-slate-600">
-          <span>Total filas</span>
-          <span>{rows.length}</span>
+      <div className="space-y-3 rounded-3xl bg-slate-50 p-4 text-sm text-slate-600">
+        <div className="flex items-center justify-between">
+          <span>Filas seleccionadas</span>
+          <span>{selected.length}</span>
         </div>
-        <div className="flex items-center justify-between text-sm text-slate-600">
-          <span>Etiquetas en esta descarga</span>
-          <span>{selectedRowsCount}</span>
+        <div className="flex items-center justify-between">
+          <span>Páginas del PDF (una etiqueta por página)</span>
+          <span>{printable.length}</span>
         </div>
+        {skipped > 0 ? (
+          <div className="flex items-center justify-between text-amber-700">
+            <span>Se omiten por EAN no válido</span>
+            <span>{skipped}</span>
+          </div>
+        ) : null}
       </div>
-
-      {isGenerating ? (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between text-sm text-slate-600">
-            <span>Generando PDF</span>
-            <span>{progress}%</span>
-          </div>
-          <div className="h-3 overflow-hidden rounded-full bg-slate-200">
-            <div className="h-full rounded-full bg-indigo-600 transition-all duration-300" style={{ width: `${progress}%` }} />
-          </div>
-        </div>
-      ) : null}
 
       {error ? (
         <div className="flex items-start gap-3 rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -110,16 +80,18 @@ export function PdfGenerator({ rows, selectedRows, fileName, onComplete, onError
 
       <button
         type="button"
-        disabled={isGenerating || rows.length === 0}
+        disabled={isGenerating || printable.length === 0}
         onClick={generatePDF}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-indigo-600 px-5 py-3 text-sm font-semibold text-white transition duration-200 hover:scale-[1.02] hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-indigo-600 px-5 py-3 text-sm font-semibold text-white transition duration-200 hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isGenerating ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" /> Generando PDF...
           </>
+        ) : printable.length === 0 ? (
+          'Selecciona al menos una fila con EAN válido'
         ) : (
-          'Generar PDF'
+          'Descargar PDF'
         )}
       </button>
     </div>
