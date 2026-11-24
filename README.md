@@ -12,7 +12,7 @@
   <p>
     <a href="https://dasikuhp.github.io/eticaja-app/"><strong>Probar la demo</strong></a> ·
     <a href="https://github.com/DasikuHp/eticaja-app/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/DasikuHp/eticaja-app/actions/workflows/ci.yml/badge.svg"></a>
-    <img alt="Licencia BSL 1.1" src="https://img.shields.io/badge/licencia-BSL_1.1-blue">
+    <img alt="Todos los derechos reservados" src="https://img.shields.io/badge/licencia-todos_los_derechos_reservados-red">
   </p>
 </div>
 
@@ -106,7 +106,9 @@ eticaja-app
 └── docs/media/                   Capturas de este README
 ```
 
-## Instalación
+## Probarlo en local
+
+Para revisar el proyecto (cualquier otro uso necesita licencia):
 
 ```bash
 git clone https://github.com/DasikuHp/eticaja-app.git
@@ -137,7 +139,7 @@ Los 8 tests de `src/lib/csv-utils.test.ts` comprueban el dígito de control del 
 
 ## Licencia
 
-[Business Source License 1.1](LICENSE). Puedes leer, copiar y modificar el código y usarlo fuera de producción. El uso comercial necesita permiso; el 7 de mayo de 2030 pasa a Apache 2.0. Contacto: [dasikuhp@gmail.com](mailto:dasikuhp@gmail.com).
+El código es mío y **no tiene licencia abierta**: está publicado para que se pueda ver, pero copiarlo, modificarlo, difundirlo o usarlo necesita una licencia de pago ([LICENSE](LICENSE)). Si te interesa, escríbeme a [dasikuhp@gmail.com](mailto:dasikuhp@gmail.com).
 
 <div align="center">
   <sub>Hecho por <a href="https://github.com/DasikuHp">DasikuHp</a> · versión 1.0.0</sub>
